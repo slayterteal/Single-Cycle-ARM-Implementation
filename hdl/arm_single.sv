@@ -74,8 +74,8 @@
 //    1101  Signed less/equal             N != V | Z = 1
 //    1110  Always                        any
 
-module arm (input  logic        clk, reset,
-            output logic [31:0] PC,
+module arm (input  logic        clk, reset, 
+            output logic [31:0] PC, // program counter
             input  logic [31:0] Instr,
             output logic        MemWrite,
             output logic [31:0] ALUResult, WriteData,
@@ -83,8 +83,8 @@ module arm (input  logic        clk, reset,
             output logic        MemStrobe,
             input  logic        PCReady);
    
-   logic [3:0] ALUFlags;
-   logic       RegWrite, ALUSrc, MemtoReg, PCSrc;
+   logic [3:0] ALUFlags; // Condition flags
+   logic       RegWrite, ALUSrc, MemtoReg, PCSrc; 
    logic [2:0] RegSrc;   
    logic [1:0] ImmSrc, ALUControl;
    
@@ -120,6 +120,14 @@ module arm (input  logic        clk, reset,
    
 endmodule // arm
 
+
+/*
+  This is what determines what kind of instruction
+  the arm is working with. The Instr[] is an input to the ARM and 
+  not something to concern ourselves with. 
+
+  ALU Flags = condition codes
+*/
 module controller (input  logic         clk, reset,
                    input  logic [31:12] Instr,
                    input  logic [ 3:0]  ALUFlags,
@@ -175,23 +183,30 @@ module decoder (input  logic [1:0] Op,
    logic        Branch, ALUOp;
 
    // Main Decoder
+   /*
+    TODO: This is the part of the code were we need
+    to start adding things. What, you may ask? Dunno.
+   */
    always_comb
-     case(Op)
-       // Data processing immediate
-       2'b00: if (Funct[5]) controls = 12'b0000_0101_0010;
-       // Data processing register
-         else controls = 12'b0000_0001_0010;
-       // LDR
-       2'b01: if (Funct[0]) controls = 12'b0000_1111_0001;
-       // STR
-         else controls = 12'b0100_1110_1001;
-       // BL
-       2'b10: if (Funct[4]) controls = 12'b1011_0101_0100;
-       // B
-         else controls = 12'b0011_0100_0100;
-       // Unimplemented
-       default: controls = 12'bx;
-     endcase // case (Op)
+    case(Op)
+      // Data processing immediate
+      2'b00: 
+      if (Funct[5]) controls = 12'b0000_0101_0010;
+      // Data processing register
+      else controls = 12'b0000_0001_0010;
+      // LDR
+      2'b01:
+      if (Funct[0]) controls = 12'b0000_1111_0001;
+      // STR
+      else controls = 12'b0100_1110_1001;
+      // BL
+      2'b10: 
+      if (Funct[4]) controls = 12'b1011_0101_0100;
+      // B
+      else controls = 12'b0011_0100_0100;
+      // Unimplemented
+      default: controls = 12'bx;
+    endcase // case (Op)
 
    assign {RegSrc, ImmSrc, ALUSrc, MemtoReg,
           RegW, MemW, Branch, ALUOp, MemStrobe} = controls;
@@ -224,6 +239,9 @@ module decoder (input  logic [1:0] Op,
    
 endmodule // decoder
 
+/*
+  Condition Code logic is handled here. 
+*/
 module condlogic (input  logic       clk, reset,
                   input  logic [3:0] Cond,
                   input  logic [3:0] ALUFlags,
@@ -326,6 +344,11 @@ module datapath (input  logic        clk, reset,
                        .b(32'b100),
                        .y(PCPlus8));
 
+  /*
+    I think this is were we can essentially make the function calls needed
+    to execute our different commands (AND, BIC, etc). 
+  */  
+
    // register file logic
    mux2 #(4)   ra1mux (.d0(Instr[19:16]),
                        .d1(4'b1111),
@@ -373,6 +396,12 @@ module datapath (input  logic        clk, reset,
                     .ALUFlags(ALUFlags));
 endmodule // datapath
 
+
+/*
+  Register file for the ARM. So this looks as if
+  we don't need to make use of the register file we generated in
+  lab 1.
+*/
 module regfile (input  logic        clk, 
                 input  logic        we3, 
                 input  logic [ 3:0] ra1, ra2, wa3, 
@@ -411,6 +440,7 @@ module extend (input  logic [23:0] Instr,
    
 endmodule // extend
 
+// only functions on the PC
 module adder #(parameter WIDTH=8)
    (input  logic [WIDTH-1:0] a, b,
     output logic [WIDTH-1:0] y);
@@ -451,6 +481,10 @@ module mux2 #(parameter WIDTH = 8)
    
 endmodule // mux2
 
+/*
+  Pretty sure this is were the legwork of the 'execution' is
+  completed.
+*/
 module alu (input  logic [31:0] a, b,
             input  logic [ 1:0] ALUControl,
             output logic [31:0] Result,
@@ -465,7 +499,11 @@ module alu (input  logic [31:0] a, b,
 
    always_comb
      casex (ALUControl[1:0])
-       2'b0?:  Result = sum;
+       2'b0?:  Result = sum;//Unimplemented??
+       /*
+       2'b00: Result = a + b;
+       2'b01: Result = a - b;
+       */
        2'b10:  Result = a & b;
        2'b11:  Result = a | b;
        default: Result = 32'bx;
