@@ -74,6 +74,33 @@
 //    1101  Signed less/equal             N != V | Z = 1
 //    1110  Always                        any
 
+/*
+  // INSTRUCTIONS IMPLEMENTED \\
+    ==DATA PROCESSES==
+      ADC
+      -ADD
+      -AND
+      ASR
+      ROR
+      BIC
+      CMN
+      CMP
+      EOR
+      -ORR
+      -SUB
+
+
+    ==MEMORY PROCESSES==
+      -B
+      -BL
+      MOV
+      MVN
+      -LDR
+      -STR
+      TEQ
+      TST
+*/
+
 module arm (input  logic        clk, reset, 
             output logic [31:0] PC, // program counter
             input  logic [31:0] Instr,
@@ -127,6 +154,8 @@ endmodule // arm
   not something to concern ourselves with. 
 
   ALU Flags = condition codes
+
+  Edit the Controller AFTER the datapath has been configured.
 */
 module controller (input  logic         clk, reset,
                    input  logic [31:12] Instr,
@@ -135,7 +164,7 @@ module controller (input  logic         clk, reset,
                    output logic         RegWrite,
                    output logic [ 1:0]  ImmSrc,
                    output logic         ALUSrc, 
-                   output logic [ 1:0]  ALUControl,
+                   output logic [ 2:0]  ALUControl,
                    output logic         MemWrite, MemtoReg,
                    output logic         PCSrc,
                    output logic         MemStrobe);
@@ -183,10 +212,6 @@ module decoder (input  logic [1:0] Op,
    logic        Branch, ALUOp;
 
    // Main Decoder
-   /*
-    TODO: This is the part of the code were we need
-    to start adding things. What, you may ask? Dunno.
-   */
    always_comb
     case(Op)
       // Data processing immediate
@@ -214,11 +239,15 @@ module decoder (input  logic [1:0] Op,
    // ALU Decoder             
    always_comb
      if (ALUOp)
-       begin                 // which DP Instr?
+       begin
+    
+    /*
+      Here you need to add all Data Processing Functions 
+    */
          case(Funct[4:1]) 
-           4'b0100: ALUControl = 2'b00; // ADD
-           4'b0010: ALUControl = 2'b01; // SUB
-           4'b0000: ALUControl = 2'b10; // AND
+           4'b0100: ALUControl = 3'b00; // ADD
+           4'b0010: ALUControl = 3'b01; // SUB
+           4'b0000: ALUControl = 3'b10; // AND
            4'b1100: ALUControl = 2'b11; // ORR
            default: ALUControl = 2'bx;  // unimplemented
          endcase
@@ -276,6 +305,11 @@ module condlogic (input  logic       clk, reset,
    
 endmodule // condlogic
 
+/*
+  The Logic for the condition codes is located below.
+  
+  // It does not need to be edited \\
+*/
 module condcheck (input  logic [3:0] Cond,
                   input  logic [3:0] Flags,
                   output logic       CondEx);
@@ -486,7 +520,7 @@ endmodule // mux2
   completed.
 */
 module alu (input  logic [31:0] a, b,
-            input  logic [ 1:0] ALUControl,
+            input  logic [ 2:0] ALUControl,
             output logic [31:0] Result,
             output logic [ 3:0] ALUFlags);
    
@@ -498,14 +532,12 @@ module alu (input  logic [31:0] a, b,
    assign sum = a + condinvb + ALUControl[0];
 
    always_comb
-     casex (ALUControl[1:0])
-       2'b0?:  Result = sum;//Unimplemented??
-       /*
-       2'b00: Result = a + b;
-       2'b01: Result = a - b;
-       */
-       2'b10:  Result = a & b;
-       2'b11:  Result = a | b;
+     casex (ALUControl[2:0])
+       3'b00?:  Result = sum;//Unimplemented??
+       3'b000: Result = a + b;
+       3'b001: Result = a - b;
+       3'b010:  Result = a & b;
+       3'b011:  Result = a | b;
        default: Result = 32'bx;
      endcase
 
