@@ -143,6 +143,7 @@ module arm (input  logic        clk, reset,
                 .ALUResult(ALUResult),
                 .WriteData(WriteData),
                 .ReadData(ReadData),
+                .CondEx(CondEx),
                 .PCReady(PCReady));
    
 endmodule // arm
@@ -253,20 +254,22 @@ module decoder (input  logic [1:0] Op,
       - TEQ & TST
     */
         case(Funct[4:1])
-          4'b0100: ALUControl = 4'b0000; // ADD
-          4'b0010: ALUControl = 4'b0001; // SUB
-          4'b0000: ALUControl = 4'b0010; // AND
-          4'b1100: ALUControl = 4'b0011; // ORR
+          4'b0000: ALUControl = 4'b0000; // AND
+          4'b0001: ALUControl = 4'b0001; // EOR
+          4'b0010: ALUControl = 4'b0010; // SUB
+          4'b0011: ALUControl = 4'b0011; // RSB
+          4'b0100: ALUControl = 4'b0100; // ADD
           4'b0101: ALUControl = 4'b0101; // ADC
-          4'b1110: ALUControl = 4'b0110; // BIC
-          4'b1011: ALUControl = 4'b0111; // CMN
-          4'b1010: ALUControl = 4'b1000; // CMP
-          4'b0001: ALUControl = 4'b1001; // EOR
-          4'b1101: ALUControl = 4'b1010; // Shift instructions
-          4'b1111: ALUControl = 4'b1011; // MVN
-          4'b0110: ALUControl = 4'b1100; // SBC
-          4'b1001: ALUControl = 4'b1101; // TEQ
-          4'b1000: ALUControl = 4'b1110; // TST
+          4'b0110: ALUControl = 4'b0110; // SBC
+          4'b0111: ALUControl = 4'b0111; // RSC
+          4'b1000: ALUControl = 4'b1000; // TST
+          4'b1001: ALUControl = 4'b1001; // TEQ
+          4'b1010: ALUControl = 4'b1010; // CMP
+          4'b1011: ALUControl = 4'b1011; // CMN
+          4'b1100: ALUControl = 4'b1100; // ORR
+          4'b1101: ALUControl = 4'b1101; // Shift instructions (MOV)
+          4'b1110: ALUControl = 4'b1110; // BIC
+          4'b1111: ALUControl = 4'b1111; // MVN
           default: ALUControl = 4'bx;  // unimplemented
         endcase
          // update flags if S bit is set 
@@ -432,6 +435,7 @@ module datapath (input  logic        clk, reset,
                        .d1(ReadData),
                        .s(MemtoReg),
                        .y(Result));
+  // this is the extImm output
    extend      ext (.Instr(Instr[23:0]),
                     .ImmSrc(ImmSrc),
                     .ExtImm(ExtImm));
@@ -539,6 +543,7 @@ endmodule // mux2
 */
 module alu (input  logic [31:0] a, b,
             input  logic [ 2:0] ALUControl,
+            input  logic [ 3:0] CondEx,
             output logic [31:0] Result,
             output logic [ 3:0] ALUFlags);
    
@@ -551,11 +556,24 @@ module alu (input  logic [31:0] a, b,
 
    always_comb
      casex (ALUControl[2:0])
-       3'b00?:  Result = sum;
-       3'b000: Result = a + b;
-       3'b001: Result = a - b;
-       3'b010:  Result = a & b;
-       3'b011:  Result = a | b;
+       //4'b00?:  Result = sum;//Unimplemented??
+       4'b0000:  Result = a && b; //AND
+       4'b0001:  Result = a ^ b; //EOR
+       4'b0010:  Result = a - b; //SUB
+       4'b0011:  Result = b - a; //RSB
+       4'b0100:  Result = a + b; //ADD
+       4'b0101:  Result = a + b + carry; //ADC
+       4'b0110:  Result = a - b - ~carry; //SBC
+       4'b0111:  Result = b - a - ~carry; //RSC
+       4'b1000:  Result = a && b; //TST
+       4'b1001:  Result = a ^ b;//TEQ
+       4'b1010:  Result = a - b;//CMP
+       4'b1011:  Result = a + b;//CMN
+       4'b1100:  Result = a || b;//ORR
+       4'b1101:  Result = a;//MOV(SHIFT INSTRUCTIONS)
+       4'b1110:  Result = a && ~b;//BIC
+       4'b1111:  Result = ~b;//MVN
+
        default: Result = 32'bx;
      endcase
 
