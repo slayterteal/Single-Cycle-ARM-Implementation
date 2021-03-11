@@ -243,14 +243,32 @@ module decoder (input  logic [1:0] Op,
     
     /*
       Here you need to add all Data Processing Functions 
+      - ADC
+      - ASR & ROR & LSL & LSR // Shift intructions (which are special)
+      - BIC
+      - CMN & CMP
+      - EOR
+      - MOV & MNV
+      - SBC
+      - TEQ & TST
     */
-         case(Funct[4:1]) 
-           4'b0100: ALUControl = 3'b00; // ADD
-           4'b0010: ALUControl = 3'b01; // SUB
-           4'b0000: ALUControl = 3'b10; // AND
-           4'b1100: ALUControl = 2'b11; // ORR
-           default: ALUControl = 2'bx;  // unimplemented
-         endcase
+        case(Funct[4:1])
+          4'b0100: ALUControl = 4'b0000; // ADD
+          4'b0010: ALUControl = 4'b0001; // SUB
+          4'b0000: ALUControl = 4'b0010; // AND
+          4'b1100: ALUControl = 4'b0011; // ORR
+          4'b0101: ALUControl = 4'b0101; // ADC
+          4'b1110: ALUControl = 4'b0110; // BIC
+          4'b1011: ALUControl = 4'b0111; // CMN
+          4'b1010: ALUControl = 4'b1000; // CMP
+          4'b0001: ALUControl = 4'b1001; // EOR
+          4'b1101: ALUControl = 4'b1010; // Shift instructions
+          4'b1111: ALUControl = 4'b1011; // MVN
+          4'b0110: ALUControl = 4'b1100; // SBC
+          4'b1001: ALUControl = 4'b1101; // TEQ
+          4'b1000: ALUControl = 4'b1110; // TST
+          default: ALUControl = 4'bx;  // unimplemented
+        endcase
          // update flags if S bit is set 
          // (C & V only updated for arith instructions)
          FlagW[1]      = Funct[0]; // FlagW[1] = S-bit
@@ -533,7 +551,7 @@ module alu (input  logic [31:0] a, b,
 
    always_comb
      casex (ALUControl[2:0])
-       3'b00?:  Result = sum;//Unimplemented??
+       3'b00?:  Result = sum;
        3'b000: Result = a + b;
        3'b001: Result = a - b;
        3'b010:  Result = a & b;
