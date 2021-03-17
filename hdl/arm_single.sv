@@ -255,22 +255,27 @@ module decoder (input  logic [1:0] Op,
       - TEQ & TST
     */
         case(Funct[4:1])
-          4'b0000: ALUControl = 4'b0000; // AND
-          4'b0001: ALUControl = 4'b0001; // EOR
-          4'b0010: ALUControl = 4'b0010; // SUB
-          4'b0011: ALUControl = 4'b0011; // RSB
-          4'b0100: ALUControl = 4'b0100; // ADD
-          4'b0101: ALUControl = 4'b0101; // ADC
-          4'b0110: ALUControl = 4'b0110; // SBC
-          4'b0111: ALUControl = 4'b0111; // RSC
-          4'b1000: ALUControl = 4'b1000; // TST
-          4'b1001: ALUControl = 4'b1001; // TEQ
-          4'b1010: ALUControl = 4'b1010; // CMP
-          4'b1011: ALUControl = 4'b1011; // CMN
-          4'b1100: ALUControl = 4'b1100; // ORR
-          4'b1101: ALUControl = 4'b1101; // Shift instructions (MOV)
-          4'b1110: ALUControl = 4'b1110; // BIC
-          4'b1111: ALUControl = 4'b1111; // MVN
+          4'b0000: ALUControl = 4'b0010; // AND
+          4'b1000: ALUControl = 4'b0010; // TST
+          
+          4'b1100: ALUControl = 4'b0011; // ORR
+
+          4'b0001: ALUControl = 4'b0111; // EOR
+          4'b1001: ALUControl = 4'b0111; // TEQ
+          
+          4'b0100: ALUControl = 4'b0000; // ADD
+          4'b0010: ALUControl = 4'b0001; // SUB
+          4'b0101: ALUControl = 4'b1100; // ADC
+          4'b1010: ALUControl = 4'b0000; // CMP
+          4'b1011: ALUControl = 4'b0001; // CMN
+          4'b1101: ALUControl = 4'b0000; // MOV
+          4'b1111: ALUControl = 4'b0001; // MVN
+
+          4'b0110: ALUControl = 4'b0101; // SBC
+          4'b0011: ALUControl = 4'b1101; // RSB
+          4'b0111: ALUControl = 4'b1000; // RSC
+          4'b1110: ALUControl = 4'b0110; // BIC
+
           default: ALUControl = 4'bx;  // unimplemented
         endcase
          // update flags if S bit is set 
@@ -281,12 +286,14 @@ module decoder (input  logic [1:0] Op,
        end
      else
        begin
+         // make sure this points to an add operation
          ALUControl = 4'b0000; // add for non-DP instructions
          FlagW      = 2'b00; // don't update Flags
        end
    
    // PC Logic
-   assign PCS  = ((Rd == 4'b1111) & RegW) | Branch;
+   // Is this where the branch functionality is held.
+   assign PCS  = ((Rd == 4'b1111) & RegW) | Branch; 
    
 endmodule // decoder
 
@@ -449,6 +456,7 @@ module datapath (input  logic        clk, reset,
    alu         alu (.a(SrcA),
                     .b(SrcB),
                     .ALUControl(ALUControl),
+                    .useCarry(useCarry),
                     .Result(ALUResult),
                     .ALUFlags(ALUFlags));
 endmodule // datapath
@@ -538,12 +546,9 @@ module mux2 #(parameter WIDTH = 8)
    
 endmodule // mux2
 
-/*
-  Pretty sure this is were the legwork of the 'execution' is
-  completed.
-*/
 module alu (input  logic [31:0] a, b,
             input  logic [ 3:0] ALUControl,
+            input  logic useCarry,
             output logic [31:0] Result,
             output logic [ 3:0] ALUFlags);
    
@@ -551,29 +556,43 @@ module alu (input  logic [31:0] a, b,
    logic [31:0] condinvb;
    logic [32:0] sum;
    
+   /*
+    Handles ADD and SUB operations.
+   */
    assign condinvb = ALUControl[0] ? ~b : b;
    assign sum = a + condinvb + ALUControl[0];
 
    always_comb
      casex (ALUControl[3:0])
-       //4'b00?:  Result = sum;//Unimplemented??
-       4'b0000:  Result = a & b; //AND
-       4'b0001:  Result = a ^ b; //EOR
-       4'b0010:  Result = a - b; //SUB
-       4'b0011:  Result = b - a; //RSB
-       4'b0100:  Result = a + b; //ADD
-       4'b0101:  Result = a + b + carry; //ADC
-       4'b0110:  Result = a - b - ~carry; //SBC
-       4'b0111:  Result = b - a - ~carry; //RSC
-       4'b1000:  Result = a & b; //TST
-       4'b1001:  Result = a ^ b;//TEQ
-       4'b1010:  Result = a - b;//CMP
-       4'b1011:  Result = a + b;//CMN
-       4'b1100:  Result = a | b;//ORR
-       4'b1101:  Result = a;//MOV(SHIFT INSTRUCTIONS)
-       4'b1110:  Result = a & ~b;//BIC
-       4'b1111:  Result = ~b; //MVN
+       4'b000?:   Result = sum; // ADD, SUB, CMP, CMN, MOV, MVN
+       4'b0010:  Result = a & b; // AND, TST
+       4'b0011:  Result = a | b; // ORR
+       4'b0111:  Result = a ^ b; // EOR, TEQ
 
+      /* now we can freely define edge cases
+      // RSB, SBC, RSC
+        EOR
+        - SUB
+        RSB, SBC, RSC, ADC
+        - ADD
+        - TST
+        - CMP
+        - CMN
+        MOV, MVN, `BIC
+
+        Now we can set a new input to determine when to use carry for
+        add / sub operations (with additional functionality to determine if
+        the carry bit needs to be inverted).
+
+        We do this by introducing some input = addLogic[?:0] that contains
+        a bit string that allows us to determine when to use these different
+        operations.
+      */
+      4'b1100: Result = sum + carry; // ADC
+      4'b0101: Result = sum - ~carry; // SBC
+      4'b1000: Result = b - a - ~carry; // RSC
+      4'b1101: Result = b - a; // RSB
+      4'b0110: Result = a & ~b; // BIC
        default: Result = 32'bx;
      endcase
 

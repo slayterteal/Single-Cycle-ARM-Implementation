@@ -1,5 +1,5 @@
 # vsim "+nowarn3829" -error 3015 -voptargs="+acc" -l transcript.txt work.testbench 
-# Start time: 17:05:19 on Mar 11,2021
+# Start time: 14:47:09 on Mar 12,2021
 # ** Note: (vsim-3812) Design is being optimized...
 # Loading sv_std.std
 # Loading work.testbench(fast)
@@ -22,6 +22,8 @@
 # Loading work.dmem(fast)
 # ** Warning: (vsim-WLF-5000) WLF file currently in use: vsim.wlf
 #           File in use by: slteal  Hostname: CEAT-ENDV360-21  ProcessID: 9424
-#           Attempting to use alternate WLF file "./wlfta9wijd".
+#           Attempting to use alternate WLF file "./wlftf4ndr3".
 # ** Warning: (vsim-WLF-5001) Could not open WLF file: vsim.wlf
-#           Using alternate file: ./wlfta9wijd
+#           Using alternate file: ./wlftf4ndr3
+# End time: 14:47:53 on Mar 12,2021, Elapsed time: 0:00:44
+# Errors: 0, Warnings: 2
