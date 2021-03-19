@@ -78,8 +78,8 @@
   // INSTRUCTIONS IMPLEMENTED \\
     ==DATA PROCESSES==
       ADC
-      -ADD
-      -AND
+      ADD
+      AND
       ASR
       ROR
       BIC
@@ -91,12 +91,12 @@
 
 
     ==MEMORY PROCESSES==
-      -B
-      -BL
+      B
+      BL
       MOV
       MVN
-      -LDR
-      -STR
+      LDR
+      STR
       TEQ
       TST
 */
@@ -115,10 +115,14 @@ module arm (input  logic        clk, reset,
    logic [2:0] RegSrc;   
    logic [1:0] ImmSrc;
    logic [3:0] ALUControl;
+
+   // I, sh and updateFlags
+   logic I, sh, updateFlags;
    
    controller c (.clk(clk),
                  .reset(reset),
                  .Instr(Instr[31:12]),
+                 // add stuff to get the i and sh bits
                  .ALUFlags(ALUFlags),
                  .RegSrc(RegSrc),
                  .RegWrite(RegWrite),
@@ -268,7 +272,7 @@ module decoder (input  logic [1:0] Op,
           4'b0101: ALUControl = 4'b1100; // ADC
           4'b1010: ALUControl = 4'b0000; // CMP
           4'b1011: ALUControl = 4'b0001; // CMN
-          4'b1101: ALUControl = 4'b0000; // MOV
+          4'b1101: ALUControl = 4'b0000; // MOV, LSL, LSR, ASR
           4'b1111: ALUControl = 4'b0001; // MVN
 
           4'b0110: ALUControl = 4'b0101; // SBC
@@ -336,8 +340,6 @@ endmodule // condlogic
 
 /*
   The Logic for the condition codes is located below.
-  
-  // It does not need to be edited \\
 */
 module condcheck (input  logic [3:0] Cond,
                   input  logic [3:0] Flags,
@@ -383,7 +385,12 @@ module datapath (input  logic        clk, reset,
                  input  logic [31:0] Instr,
                  output logic [31:0] ALUResult, WriteData,
                  input  logic [31:0] ReadData,
-                 input  logic        PCReady);
+                 input  logic        PCReady,
+                 
+                 // new stuff
+                 input logic updateFlags,
+                 input logic I,
+                 input logic sh);
    
    logic [31:0] PCNext, PCPlus4, PCPlus8;
    logic [31:0] ExtImm, SrcA, SrcB, Result;
@@ -406,12 +413,6 @@ module datapath (input  logic        clk, reset,
    adder #(32) pcadd2 (.a(PCPlus4),
                        .b(32'b100),
                        .y(PCPlus8));
-
-  /*
-    I think this is were we can essentially make the function calls needed
-    to execute our different commands (AND, BIC, etc). 
-  */  
-
    // register file logic
    mux2 #(4)   ra1mux (.d0(Instr[19:16]),
                        .d1(4'b1111),
@@ -456,16 +457,18 @@ module datapath (input  logic        clk, reset,
    alu         alu (.a(SrcA),
                     .b(SrcB),
                     .ALUControl(ALUControl),
-                    .useCarry(useCarry),
+                    //
+                    .I(I),
+                    .sh(sh),
+                    .updateFlags(updateFlags),
+                    //
                     .Result(ALUResult),
                     .ALUFlags(ALUFlags));
 endmodule // datapath
 
 
 /*
-  Register file for the ARM. So this looks as if
-  we don't need to make use of the register file we generated in
-  lab 1.
+  Register file for the ARM.
 */
 module regfile (input  logic        clk, 
                 input  logic        we3, 
@@ -548,7 +551,9 @@ endmodule // mux2
 
 module alu (input  logic [31:0] a, b,
             input  logic [ 3:0] ALUControl,
-            input  logic useCarry,
+            input  logic I,  // need these bits to distinguish
+            input  logic sh, // shift operations (MOV, LSR, etc.)
+            input  logic updateFlags, // a bit that determines whether or not to update the flags.
             output logic [31:0] Result,
             output logic [ 3:0] ALUFlags);
    
@@ -556,52 +561,65 @@ module alu (input  logic [31:0] a, b,
    logic [31:0] condinvb;
    logic [32:0] sum;
    
-   /*
-    Handles ADD and SUB operations.
-   */
-   assign condinvb = ALUControl[0] ? ~b : b;
-   assign sum = a + condinvb + ALUControl[0];
+   // TODO: add additional logic here for shift operations
+  always_comb // can I combine the two `always_comb`?
+    if(ALUControl[3:0] != 4'b0000 )
+      begin
+        assign condinvb = ALUControl[0] ? ~b : b;
+        assign sum = a + condinvb + ALUControl[0];
+      end
+    else
+      begin
+        /*
+          this is were a shift operation will be preformed, the new
+          value will be stored within the sum. The rest of the code can
+          operate as is.
+        */
+        if(I == 1) // this is just a MOV
+          begin
+            assign condinvb = ALUControl[0] ? ~b : b;
+            assign sum = a + condinvb + ALUControl[0];
+          end
+        else
+          begin
+            casex(sh) // NOTE: Assign sum a value not the result
+              2'b00: // LSL
+              2'b01: // LSR
+              2'b10: // ASR
+              2'b11: // ROR
+            endcase
+          end
+      end 
+   
+//  always_comb
+    casex (ALUControl[3:0])
+      4'b000?:   Result = sum; // ADD, SUB, CMP, CMN, MOV, MVN
+      4'b0010:  Result = a & b; // AND, TST
+      4'b0011:  Result = a | b; // ORR
+      4'b0111:  Result = a ^ b; // EOR, TEQ
 
-   always_comb
-     casex (ALUControl[3:0])
-       4'b000?:   Result = sum; // ADD, SUB, CMP, CMN, MOV, MVN
-       4'b0010:  Result = a & b; // AND, TST
-       4'b0011:  Result = a | b; // ORR
-       4'b0111:  Result = a ^ b; // EOR, TEQ
-
-      /* now we can freely define edge cases
-      // RSB, SBC, RSC
-        EOR
-        - SUB
-        RSB, SBC, RSC, ADC
-        - ADD
-        - TST
-        - CMP
-        - CMN
-        MOV, MVN, `BIC
-
-        Now we can set a new input to determine when to use carry for
-        add / sub operations (with additional functionality to determine if
-        the carry bit needs to be inverted).
-
-        We do this by introducing some input = addLogic[?:0] that contains
-        a bit string that allows us to determine when to use these different
-        operations.
-      */
+      // now we can freely define edge cases,
+      // or functions that deserve their own 'special' operation :D
       4'b1100: Result = sum + carry; // ADC
       4'b0101: Result = sum - ~carry; // SBC
       4'b1000: Result = b - a - ~carry; // RSC
       4'b1101: Result = b - a; // RSB
       4'b0110: Result = a & ~b; // BIC
-       default: Result = 32'bx;
-     endcase
+      default: Result = 32'bx;
+    endcase
 
-   assign neg      = Result[31];
-   assign zero     = (Result == 32'b0);
-   assign carry    = (ALUControl[1] == 1'b0) & sum[32];
-   assign overflow = (ALUControl[1] == 1'b0) & 
-                     ~(a[31] ^ b[31] ^ ALUControl[0]) & 
-                     (a[31] ^ sum[31]); 
-   assign ALUFlags = {neg, zero, carry, overflow};
+//  always_comb
+    if(updateFlags == 1)
+      begin
+        assign neg      = Result[31];
+        assign zero     = (Result == 32'b0);
+        assign carry    = (ALUControl[1] == 1'b0) & sum[32];
+        assign overflow = (ALUControl[1] == 1'b0) & 
+                          ~(a[31] ^ b[31] ^ ALUControl[0]) & 
+                          (a[31] ^ sum[31]); 
+        assign ALUFlags = {neg, zero, carry, overflow};
+      end
+    else continue; // should prevent the flags from being updated.
+   
    
 endmodule // alu
