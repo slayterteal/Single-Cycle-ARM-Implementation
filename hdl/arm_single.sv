@@ -103,7 +103,7 @@
 
 module arm (input  logic        clk, reset, 
             output logic [31:0] PC, // program counter
-            input  logic [31:0] Instr,
+            input  logic [31:12] Instr,
             output logic        MemWrite,
             output logic [31:0] ALUResult, WriteData,
             input  logic [31:0] ReadData,
@@ -116,13 +116,12 @@ module arm (input  logic        clk, reset,
    logic [1:0] ImmSrc;
    logic [3:0] ALUControl;
 
-   // I, sh and updateFlags
-   logic I, sh, updateFlags;
-   
+   // A variable to determine if flags should be updated.
+   logic updateFlags;
+
    controller c (.clk(clk),
                  .reset(reset),
                  .Instr(Instr[31:12]),
-                 // add stuff to get the i and sh bits
                  .ALUFlags(ALUFlags),
                  .RegSrc(RegSrc),
                  .RegWrite(RegWrite),
@@ -132,7 +131,10 @@ module arm (input  logic        clk, reset,
                  .MemWrite(MemWrite),
                  .MemtoReg(MemtoReg),
                  .PCSrc(PCSrc),
-                 .MemStrobe(MemStrobe));
+                 .MemStrobe(MemStrobe),
+                 //
+                 .updateFlags(updateFlags)
+                 );
    datapath dp (.clk(clk),
                 .reset(reset),
                 .RegSrc(RegSrc),
@@ -148,7 +150,12 @@ module arm (input  logic        clk, reset,
                 .ALUResult(ALUResult),
                 .WriteData(WriteData),
                 .ReadData(ReadData),
-                .PCReady(PCReady));
+                .PCReady(PCReady)
+                //
+                .updateFlags(updateFlags),
+                .I(Instr[25]),
+                .sh(Instr[6:5])
+                );
    
 endmodule // arm
 
@@ -163,7 +170,7 @@ endmodule // arm
   Edit the Controller AFTER the datapath has been configured.
 */
 module controller (input  logic         clk, reset,
-                   input  logic [31:12] Instr,
+                   input  logic [31:0]  Instr,
                    input  logic [ 3:0]  ALUFlags,
                    output logic [ 2:0]  RegSrc,
                    output logic         RegWrite,
@@ -172,7 +179,11 @@ module controller (input  logic         clk, reset,
                    output logic [ 3:0]  ALUControl,
                    output logic         MemWrite, MemtoReg,
                    output logic         PCSrc,
-                   output logic         MemStrobe);
+                   output logic         MemStrobe
+                   
+                   // new stuff
+                   output logic updateFlags
+                   );
    
    logic [1:0] FlagW;
    logic       PCS, RegW, MemW;
@@ -189,7 +200,10 @@ module controller (input  logic         clk, reset,
                 .ImmSrc(ImmSrc),
                 .RegSrc(RegSrc),
                 .ALUControl(ALUControl),
-                .MemStrobe(MemStrobe));
+                .MemStrobe(MemStrobe),
+                //
+                .updateFlags(updateFlags),
+                );
    condlogic cl (.clk(clk),
                  .reset(reset),
                  .Cond(Instr[31:28]),
@@ -212,7 +226,11 @@ module decoder (input  logic [1:0] Op,
                 output logic [1:0] ImmSrc, 
                 output logic [3:0] ALUControl,
                 output logic [2:0] RegSrc,
-                output logic       MemStrobe);
+                output logic       MemStrobe
+                
+                // new stuff
+                output logic updateFlags
+                );
    
    logic [11:0] controls;
    logic        Branch, ALUOp;
@@ -241,7 +259,10 @@ module decoder (input  logic [1:0] Op,
 
    assign {RegSrc, ImmSrc, ALUSrc, MemtoReg,
           RegW, MemW, Branch, ALUOp, MemStrobe} = controls;
-      
+    
+
+    // default assign the updateFlag as one (always update).
+    assign updateFlag = 1;
    // ALU Decoder             
    always_comb
      if (ALUOp)
@@ -272,7 +293,11 @@ module decoder (input  logic [1:0] Op,
           4'b0101: ALUControl = 4'b1100; // ADC
           4'b1010: ALUControl = 4'b0000; // CMP
           4'b1011: ALUControl = 4'b0001; // CMN
-          4'b1101: ALUControl = 4'b0000; // MOV, LSL, LSR, ASR
+          4'b1101:
+            begin
+              ALUControl = 4'b0000; // MOV, LSL, LSR, ASR
+              updateFlags = 0; // don't update the flags on these operations
+            end 
           4'b1111: ALUControl = 4'b0001; // MVN
 
           4'b0110: ALUControl = 4'b0101; // SBC
@@ -388,9 +413,10 @@ module datapath (input  logic        clk, reset,
                  input  logic        PCReady,
                  
                  // new stuff
-                 input logic updateFlags,
+                 input logic updateFlags, // recieved from the decoder 
                  input logic I,
-                 input logic sh);
+                 input logic [1:0] sh
+                 );
    
    logic [31:0] PCNext, PCPlus4, PCPlus8;
    logic [31:0] ExtImm, SrcA, SrcB, Result;
@@ -552,7 +578,7 @@ endmodule // mux2
 module alu (input  logic [31:0] a, b,
             input  logic [ 3:0] ALUControl,
             input  logic I,  // need these bits to distinguish
-            input  logic sh, // shift operations (MOV, LSR, etc.)
+            input  logic [1:0] sh, // shift operations (MOV, LSR, etc.)
             input  logic updateFlags, // a bit that determines whether or not to update the flags.
             output logic [31:0] Result,
             output logic [ 3:0] ALUFlags);
@@ -560,8 +586,7 @@ module alu (input  logic [31:0] a, b,
    logic        neg, zero, carry, overflow;
    logic [31:0] condinvb;
    logic [32:0] sum;
-   
-   // TODO: add additional logic here for shift operations
+   S
   always_comb // can I combine the two `always_comb`?
     if(ALUControl[3:0] != 4'b0000 )
       begin
@@ -582,11 +607,11 @@ module alu (input  logic [31:0] a, b,
           end
         else
           begin
-            casex(sh) // NOTE: Assign sum a value not the result
-              2'b00: // LSL
-              2'b01: // LSR
-              2'b10: // ASR
-              2'b11: // ROR
+            casex(sh) // NOTE: Assign sum not the result
+              2'b00: sum = a << b // LSL
+              2'b01: sum = a >> b // LSR
+              2'b10: sum = a >>> b // ASR
+              2'b11: sum = a <<< b // ROR
             endcase
           end
       end 
@@ -619,7 +644,7 @@ module alu (input  logic [31:0] a, b,
                           (a[31] ^ sum[31]); 
         assign ALUFlags = {neg, zero, carry, overflow};
       end
-    else continue; // should prevent the flags from being updated.
+    else break; // should prevent the flags from being updated.
    
    
 endmodule // alu
