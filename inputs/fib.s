@@ -4,7 +4,7 @@
 @
 
 start:	
-	mov 	r0, #0x1f 	@ n=32
+	mov 	r0, #0x8 	@ n=8
 	bl 	fib		@ call fibonacci function ...
 	mov	r5, #0x104	@ base address
 	str	r2, [r5]
