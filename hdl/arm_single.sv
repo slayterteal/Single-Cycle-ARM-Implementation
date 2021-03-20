@@ -103,7 +103,7 @@
 
 module arm (input  logic        clk, reset, 
             output logic [31:0] PC, // program counter
-            input  logic [31:12] Instr,
+            input  logic [31:0] Instr,
             output logic        MemWrite,
             output logic [31:0] ALUResult, WriteData,
             input  logic [31:0] ReadData,
@@ -114,14 +114,14 @@ module arm (input  logic        clk, reset,
    logic       RegWrite, ALUSrc, MemtoReg, PCSrc; 
    logic [2:0] RegSrc;   
    logic [1:0] ImmSrc;
-   logic [3:0] ALUControl;
+   logic [4:0] ALUControl;
 
    // A variable to determine if flags should be updated.
    logic updateFlags;
 
    controller c (.clk(clk),
                  .reset(reset),
-                 .Instr(Instr[31:12]),
+                 .Instr(Instr[31:0]),
                  .ALUFlags(ALUFlags),
                  .RegSrc(RegSrc),
                  .RegWrite(RegWrite),
@@ -150,7 +150,7 @@ module arm (input  logic        clk, reset,
                 .ALUResult(ALUResult),
                 .WriteData(WriteData),
                 .ReadData(ReadData),
-                .PCReady(PCReady)
+                .PCReady(PCReady),
                 //
                 .updateFlags(updateFlags),
                 .I(Instr[25]),
@@ -176,10 +176,10 @@ module controller (input  logic         clk, reset,
                    output logic         RegWrite,
                    output logic [ 1:0]  ImmSrc,
                    output logic         ALUSrc, 
-                   output logic [ 3:0]  ALUControl,
+                   output logic [ 4:0]  ALUControl,
                    output logic         MemWrite, MemtoReg,
                    output logic         PCSrc,
-                   output logic         MemStrobe
+                   output logic         MemStrobe,
                    
                    // new stuff
                    output logic updateFlags
@@ -202,7 +202,7 @@ module controller (input  logic         clk, reset,
                 .ALUControl(ALUControl),
                 .MemStrobe(MemStrobe),
                 //
-                .updateFlags(updateFlags),
+                .updateFlags(updateFlags)
                 );
    condlogic cl (.clk(clk),
                  .reset(reset),
@@ -224,9 +224,9 @@ module decoder (input  logic [1:0] Op,
                 output logic       PCS, RegW, MemW,
                 output logic       MemtoReg, ALUSrc,
                 output logic [1:0] ImmSrc, 
-                output logic [3:0] ALUControl,
+                output logic [4:0] ALUControl,
                 output logic [2:0] RegSrc,
-                output logic       MemStrobe
+                output logic       MemStrobe,
                 
                 // new stuff
                 output logic updateFlags
@@ -257,12 +257,13 @@ module decoder (input  logic [1:0] Op,
       default: controls = 12'bx;
     endcase // case (Op)
 
-   assign {RegSrc, ImmSrc, ALUSrc, MemtoReg,
-          RegW, MemW, Branch, ALUOp, MemStrobe} = controls;
+    assign {RegSrc, ImmSrc, ALUSrc, MemtoReg,
+           RegW, MemW, Branch, ALUOp, MemStrobe} = controls;
     
 
     // default assign the updateFlag as one (always update).
-    assign updateFlag = 1;
+    assign updateFlag = 1'b1;
+   
    // ALU Decoder             
    always_comb
      if (ALUOp)
@@ -280,43 +281,43 @@ module decoder (input  logic [1:0] Op,
       - TEQ & TST
     */
         case(Funct[4:1])
-          4'b0000: ALUControl = 4'b0010; // AND
-          4'b1000: ALUControl = 4'b0010; // TST
+          4'b0000: ALUControl = 5'b00010; // AND
+          4'b1000: ALUControl = 5'b00010; // TST
           
-          4'b1100: ALUControl = 4'b0011; // ORR
+          4'b1100: ALUControl = 5'b00011; // ORR
 
-          4'b0001: ALUControl = 4'b0111; // EOR
-          4'b1001: ALUControl = 4'b0111; // TEQ
+          4'b0001: ALUControl = 5'b00111; // EOR
+          4'b1001: ALUControl = 5'b00111; // TEQ
           
-          4'b0100: ALUControl = 4'b0000; // ADD
-          4'b0010: ALUControl = 4'b0001; // SUB
-          4'b0101: ALUControl = 4'b1100; // ADC
-          4'b1010: ALUControl = 4'b0000; // CMP
-          4'b1011: ALUControl = 4'b0001; // CMN
+          4'b0100: ALUControl = 5'b00000; // ADD
+          4'b0010: ALUControl = 5'b00001; // SUB
+          4'b0101: ALUControl = 5'b01100; // ADC
+          4'b1010: ALUControl = 5'b00000; // CMP
+          4'b1011: ALUControl = 5'b00001; // CMN
           4'b1101:
             begin
-              ALUControl = 4'b0000; // MOV, LSL, LSR, ASR
-              updateFlags = 0; // don't update the flags on these operations
+              ALUControl = 5'b10000; // MOV, LSL, LSR, ASR, ROR
+              updateFlags = 1'b0; // don't update the flags on these operations
             end 
-          4'b1111: ALUControl = 4'b0001; // MVN
+          4'b1111: ALUControl = 5'b00001; // MVN
 
-          4'b0110: ALUControl = 4'b0101; // SBC
-          4'b0011: ALUControl = 4'b1101; // RSB
-          4'b0111: ALUControl = 4'b1000; // RSC
-          4'b1110: ALUControl = 4'b0110; // BIC
+          4'b0110: ALUControl = 5'b00101; // SBC
+          4'b0011: ALUControl = 5'b01101; // RSB
+          4'b0111: ALUControl = 5'b01000; // RSC
+          4'b1110: ALUControl = 5'b00110; // BIC
 
-          default: ALUControl = 4'bx;  // unimplemented
+          default: ALUControl = 5'bx;  // unimplemented
         endcase
          // update flags if S bit is set 
          // (C & V only updated for arith instructions)
          FlagW[1]      = Funct[0]; // FlagW[1] = S-bit
          // FlagW[0] = S-bit & (ADD | SUB)
-         FlagW[0]      = Funct[0] & (ALUControl == 4'b0000 | ALUControl == 4'b0001);
+         FlagW[0]      = Funct[0] & (ALUControl == 5'b00000 | ALUControl == 5'b00001);
        end
      else
        begin
          // make sure this points to an add operation
-         ALUControl = 4'b0000; // add for non-DP instructions
+         ALUControl = 5'b00000; // add for non-DP instructions
          FlagW      = 2'b00; // don't update Flags
        end
    
@@ -402,7 +403,7 @@ module datapath (input  logic        clk, reset,
                  input  logic        RegWrite,
                  input  logic [ 1:0]  ImmSrc,
                  input  logic        ALUSrc,
-                 input  logic [ 3:0]  ALUControl,
+                 input  logic [ 4:0]  ALUControl,
                  input  logic        MemtoReg,
                  input  logic        PCSrc,
                  output logic [ 3:0]  ALUFlags,
@@ -420,7 +421,7 @@ module datapath (input  logic        clk, reset,
    
    logic [31:0] PCNext, PCPlus4, PCPlus8;
    logic [31:0] ExtImm, SrcA, SrcB, Result;
-   logic [ 3:0]  RA1, RA2, RA3;
+   logic [ 3:0] RA1, RA2, RA3;
    logic [31:0] RA4;   
    
    // next PC logic
@@ -484,8 +485,8 @@ module datapath (input  logic        clk, reset,
                     .b(SrcB),
                     .ALUControl(ALUControl),
                     //
-                    .I(I),
-                    .sh(sh),
+                    .I(Instr[25]),
+                    .sh(Instr[6:5]),
                     .updateFlags(updateFlags),
                     //
                     .Result(ALUResult),
@@ -576,7 +577,7 @@ module mux2 #(parameter WIDTH = 8)
 endmodule // mux2
 
 module alu (input  logic [31:0] a, b,
-            input  logic [ 3:0] ALUControl,
+            input  logic [ 4:0] ALUControl,
             input  logic I,  // need these bits to distinguish
             input  logic [1:0] sh, // shift operations (MOV, LSR, etc.)
             input  logic updateFlags, // a bit that determines whether or not to update the flags.
@@ -586,65 +587,54 @@ module alu (input  logic [31:0] a, b,
    logic        neg, zero, carry, overflow;
    logic [31:0] condinvb;
    logic [32:0] sum;
-   S
-  always_comb // can I combine the two `always_comb`?
-    if(ALUControl[3:0] != 4'b0000 )
-      begin
-        assign condinvb = ALUControl[0] ? ~b : b;
-        assign sum = a + condinvb + ALUControl[0];
-      end
-    else
-      begin
-        /*
-          this is were a shift operation will be preformed, the new
-          value will be stored within the sum. The rest of the code can
-          operate as is.
-        */
-        if(I == 1) // this is just a MOV
-          begin
-            assign condinvb = ALUControl[0] ? ~b : b;
-            assign sum = a + condinvb + ALUControl[0];
-          end
+
+  assign condinvb = ALUControl[0] ? ~b : b;
+  assign sum = a + condinvb + ALUControl[0];
+  
+ always_comb
+    casex (ALUControl[4:0])
+      5'b0000?:  Result = sum; // ADD, SUB, CMP, CMN, MOV, MVN
+      5'b10000:
+        begin
+          if(I == 1) // this is just a MOV
+            Result = b;
         else
           begin
-            casex(sh) // NOTE: Assign sum not the result
-              2'b00: sum = a << b // LSL
-              2'b01: sum = a >> b // LSR
-              2'b10: sum = a >>> b // ASR
-              2'b11: sum = a <<< b // ROR
+            casex (sh)
+              2'b00: Result = a << b; // LSL
+              2'b01: Result = a >> b; // LSR
+              2'b10: Result = a >>> b; // ASR
+              2'b11: Result = a <<< 2*b; // ROR
             endcase
           end
-      end 
-   
-//  always_comb
-    casex (ALUControl[3:0])
-      4'b000?:   Result = sum; // ADD, SUB, CMP, CMN, MOV, MVN
-      4'b0010:  Result = a & b; // AND, TST
-      4'b0011:  Result = a | b; // ORR
-      4'b0111:  Result = a ^ b; // EOR, TEQ
+        end
+      5'b00010:  Result = a & b; // AND, TST
+      5'b00011:  Result = a | b; // ORR
+      5'b00111:  Result = a ^ b; // EOR, TEQ
 
       // now we can freely define edge cases,
       // or functions that deserve their own 'special' operation :D
-      4'b1100: Result = sum + carry; // ADC
-      4'b0101: Result = sum - ~carry; // SBC
-      4'b1000: Result = b - a - ~carry; // RSC
-      4'b1101: Result = b - a; // RSB
-      4'b0110: Result = a & ~b; // BIC
+      5'b01100: Result = sum + carry; // ADC
+      5'b00101: Result = sum - ~carry; // SBC
+      5'b01000: Result = b - a - ~carry; // RSC
+      5'b01101: Result = b - a; // RSB
+      5'b00110: Result = a & ~b; // BIC
       default: Result = 32'bx;
     endcase
 
-//  always_comb
-    if(updateFlags == 1)
+ always_comb
+ // ALUControl[4:0] != 5'b10000
+    if(ALUControl[4:0] != 5'b10000)
       begin
-        assign neg      = Result[31];
-        assign zero     = (Result == 32'b0);
-        assign carry    = (ALUControl[1] == 1'b0) & sum[32];
-        assign overflow = (ALUControl[1] == 1'b0) & 
+        neg      = Result[31];
+        zero     = (Result == 32'b0);
+        carry    = (ALUControl[1] == 1'b0) & sum[32];
+        overflow = (ALUControl[1] == 1'b0) & 
                           ~(a[31] ^ b[31] ^ ALUControl[0]) & 
                           (a[31] ^ sum[31]); 
-        assign ALUFlags = {neg, zero, carry, overflow};
+        ALUFlags = {neg, zero, carry, overflow};
       end
-    else break; // should prevent the flags from being updated.
+    // else break; // should prevent the flags from being updated.
    
    
 endmodule // alu
