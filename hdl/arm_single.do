@@ -26,7 +26,7 @@ if [file exists work] {
 }
 vlib work
 
-set MEMORY_FILE ./arithtest.dat
+set MEMORY_FILE ./test_inputs/arithtest.dat
 
 # compile source files
 vlog imem.v dmem.v arm_single.sv top.sv tb.sv

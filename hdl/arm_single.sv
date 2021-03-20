@@ -172,7 +172,7 @@ module controller (input  logic         clk, reset,
                    output logic [ 4:0]  ALUControl,
                    output logic         MemWrite, MemtoReg,
                    output logic         PCSrc,
-                   output logic         MemStrobe,);
+                   output logic         MemStrobe);
    
    logic [1:0] FlagW;
    logic       PCS, RegW, MemW;
@@ -213,7 +213,7 @@ module decoder (input  logic [1:0] Op,
                 output logic [1:0] ImmSrc, 
                 output logic [4:0] ALUControl,
                 output logic [2:0] RegSrc,
-                output logic       MemStrobe,);
+                output logic       MemStrobe);
    
    logic [11:0] controls;
    logic        Branch, ALUOp;
@@ -376,10 +376,9 @@ module datapath (input  logic        clk, reset,
                  input  logic [31:0] ReadData,
                  input  logic        PCReady,
                  
-                 // new stuff
+                 // immediate and sh bits for shift instructions
                  input logic I,
-                 input logic [1:0] sh
-                 );
+                 input logic [1:0] sh);
    
    logic [31:0] PCNext, PCPlus4, PCPlus8;
    logic [31:0] ExtImm, SrcA, SrcB, Result;
