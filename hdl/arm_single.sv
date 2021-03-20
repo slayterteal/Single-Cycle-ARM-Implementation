@@ -189,8 +189,7 @@ module controller (input  logic         clk, reset,
                 .ImmSrc(ImmSrc),
                 .RegSrc(RegSrc),
                 .ALUControl(ALUControl),
-                .MemStrobe(MemStrobe),
-                );
+                .MemStrobe(MemStrobe));
    condlogic cl (.clk(clk),
                  .reset(reset),
                  .Cond(Instr[31:28]),
@@ -259,8 +258,8 @@ module decoder (input  logic [1:0] Op,
           4'b0100: ALUControl = 5'b00000; // ADD
           4'b0010: ALUControl = 5'b00001; // SUB
           4'b0101: ALUControl = 5'b01100; // ADC
-          4'b1010: ALUControl = 5'b00000; // CMP
-          4'b1011: ALUControl = 5'b00001; // CMN
+          4'b1010: ALUControl = 5'b00001; // CMP
+          4'b1011: ALUControl = 5'b00000; // CMN
           4'b1101: ALUControl = 5'b10000; // MOV, LSL, LSR, ASR, ROR
           4'b1111: ALUControl = 5'b00001; // MVN
 
@@ -557,15 +556,15 @@ module alu (input  logic [31:0] a, b,
         begin
           if(I == 1) // this is just a MOV
             Result = b;
-        else
-          begin
-            casex (sh)
-              2'b00: Result = a << b; // LSL
-              2'b01: Result = a >> b; // LSR
-              2'b10: Result = a >>> b; // ASR
-              2'b11: Result = a <<< 2*b; // ROR
-            endcase
-          end
+          else
+            begin
+              casex (sh)
+                2'b00: Result = a << b; // LSL
+                2'b01: Result = a >> b; // LSR
+                2'b10: Result = a >>> b; // ASR
+                2'b11: Result = a <<< 2*b; // ROR
+              endcase
+            end
         end
       5'b00010:  Result = a & b; // AND, TST
       5'b00011:  Result = a | b; // ORR

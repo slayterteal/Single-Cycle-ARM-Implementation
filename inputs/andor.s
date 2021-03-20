@@ -4,7 +4,7 @@ add r1, r1, #0x340000
 add r1, r1, #0x5600
 add r1, r1, #0x78
 mov r2, #0x12
-mov r2, r2, LSL #24
+mov r2, r2, LSL #24 @problem here
 orr r2, r2, #0x340000
 orr r2, r2, #0x5600
 orr r2, r2, #0x78

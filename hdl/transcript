@@ -15,9 +15,9 @@
 # ** Warning: (vdel-134) Unable to remove locked optimized design "_opt".  Locker is slteal@CEAT-ENDV360-21.
 # ** Warning: (vdel-134) Unable to remove locked optimized design "_opt1".  Locker is dalbrec@CEAT-ENDV360-21.
 # ** Warning: (vlib-34) Library already exists at "work".
-# ./arithtest.dat
+# ./test_inputs/addiu.dat
 # Model Technology ModelSim SE-64 vlog 10.7f Compiler 2020.03 Mar 24 2020
-# Start time: 15:12:01 on Mar 19,2021
+# Start time: 16:01:33 on Mar 20,2021
 # vlog -reportprogress 300 imem.v dmem.v arm_single.sv top.sv tb.sv 
 # -- Compiling module imem
 # -- Compiling module dmem
@@ -40,5 +40,5 @@
 # Top level modules:
 # 	flopr
 # 	testbench
-# End time: 15:12:02 on Mar 19,2021, Elapsed time: 0:00:01
+# End time: 16:01:34 on Mar 20,2021, Elapsed time: 0:00:01
 # Errors: 0, Warnings: 0
