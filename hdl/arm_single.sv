@@ -261,7 +261,7 @@ module decoder (input  logic [1:0] Op,
           4'b1010: ALUControl = 5'b00001; // CMP
           4'b1011: ALUControl = 5'b00000; // CMN
           4'b1101: ALUControl = 5'b10000; // MOV, LSL, LSR, ASR, ROR
-          4'b1111: ALUControl = 5'b00001; // MVN
+          4'b1111: ALUControl = 5'b10001; // MVN
 
           4'b0110: ALUControl = 5'b00101; // SBC
           4'b0011: ALUControl = 5'b01101; // RSB
@@ -446,7 +446,8 @@ module datapath (input  logic        clk, reset,
                     .ALUControl(ALUControl),
                     //
                     .I(Instr[25]),
-                    .sh(Instr[6:5]),
+                    .src2(Instr[11:0]),
+                    .S(Instr[20]),
                     //
                     .Result(ALUResult),
                     .ALUFlags(ALUFlags));
@@ -480,17 +481,20 @@ endmodule // regfile
 module extend (input  logic [23:0] Instr,
                input  logic [ 1:0] ImmSrc,
                output logic [31:0] ExtImm);
-   
-   always_comb
-     case(ImmSrc) 
-       // 8-bit unsigned immediate
-       2'b00:   ExtImm = {24'b0, Instr[7:0]};  
-       // 12-bit unsigned immediate 
-       2'b01:   ExtImm = {20'b0, Instr[11:0]}; 
-       // 24-bit two's complement shifted branch 
-       2'b10:   ExtImm = {{6{Instr[23]}}, Instr[23:0], 2'b00}; 
-       default: ExtImm = 32'bx; // undefined
-     endcase // case (ImmSrc)
+  logic [3:0] rotate;
+  assign rotate = Instr[11:8];
+  logic [23:0] shift;
+  assign shift = (Instr[7:0]>>2*rotate|(Instr[7:0]<<(32-2*rotate)));
+  always_comb
+    case(ImmSrc) 
+      // 8-bit unsigned immediate
+      2'b00:   ExtImm = {24'b0, Instr[7:0]};  
+      // 12-bit unsigned immediate 
+      2'b01:   ExtImm = {20'b0, Instr[11:0]}; 
+      // 24-bit two's complement shifted branch 
+      2'b10:   ExtImm = {{6{Instr[23]}}, Instr[23:0], 2'b00}; 
+      default: ExtImm = 32'bx; // undefined
+    endcase // case (ImmSrc)
    
 endmodule // extend
 
@@ -538,7 +542,8 @@ endmodule // mux2
 module alu (input  logic [31:0] a, b,
             input  logic [ 4:0] ALUControl,
             input  logic I,  // need these bits to distinguish
-            input  logic [1:0] sh, // shift operations (MOV, LSR, etc.)
+            input  logic [11:0] src2, // the src2 is needed for several operations (mainly MOV)
+            input  logic S, // S bit determines if the condition codes are updated
             output logic [31:0] Result,
             output logic [ 3:0] ALUFlags);
    
@@ -551,21 +556,24 @@ module alu (input  logic [31:0] a, b,
   
   always_comb
     casex (ALUControl[4:0])
-      5'b0000?:  Result = sum; // ADD, SUB, CMP, CMN, MOV, MVN
+      5'b00000:  Result = sum; // ADD, SUB, CMN
+      5'b00001:  Result = sum; // ADD, SUB, CMP
+      5'b10001:  Result = ~b + 1'b1; // MVN 
       5'b10000:
         begin
-          if(I == 1) // this is just a MOV
+          if(I == 1 || src2[11:4] == 0) // this is just a MOV
             Result = b;
           else
             begin
-              casex (sh)
-                2'b00: Result = a << b; // LSL
-                2'b01: Result = a >> b; // LSR
-                2'b10: Result = a >>> b; // ASR
-                2'b11: Result = a <<< 2*b; // ROR
+              casex (src2[6:5])
+                2'b00: Result = b << src2[11:7]; // LSL
+                2'b01: Result = b >> src2[11:7]; // LSR
+                2'b10: Result = b >>> src2[11:7]; // ASR
+                2'b11: Result = (b>>2*src2[11:7]|(b<<(32-2*src2[11:7]))); // ROR
               endcase
             end
         end
+      
       5'b00010:  Result = a & b; // AND, TST
       5'b00011:  Result = a | b; // ORR
       5'b00111:  Result = a ^ b; // EOR, TEQ
@@ -581,7 +589,7 @@ module alu (input  logic [31:0] a, b,
     endcase
 
  always_comb
-    if(ALUControl[4:0] != 5'b10000)
+    if(S == 1)
       begin
         neg      = Result[31];
         zero     = (Result == 32'b0);

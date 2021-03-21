@@ -26,7 +26,7 @@ if [file exists work] {
 }
 vlib work
 
-set MEMORY_FILE ./test_inputs/addiu.dat
+set MEMORY_FILE ./test_inputs/andor.dat
 
 # compile source files
 vlog imem.v dmem.v arm_single.sv top.sv tb.sv
@@ -77,7 +77,7 @@ configure wave -rowmargin 4
 configure wave -childrowmargin 2
 
 -- Run the Simulation
-run 765 ns
+run 1500 ns
 
 -- Save memory for checking (if needed)
 mem save -outfile dmemory.dump -wordsperline 1 /testbench/dut/dmem/RAM
