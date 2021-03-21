@@ -483,7 +483,7 @@ module extend (input  logic [23:0] Instr,
                output logic [31:0] ExtImm);
   logic [3:0] rotate;
   assign rotate = Instr[11:8];
-  logic [23:0] shift;
+  logic [31:0] shift;
   assign shift = (Instr[7:0]>>2*rotate|(Instr[7:0]<<(32-2*rotate)));
   always_comb
     case(ImmSrc) 
