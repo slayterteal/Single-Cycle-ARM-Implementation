@@ -488,7 +488,7 @@ module extend (input  logic [23:0] Instr,
   always_comb
     case(ImmSrc) 
       // 8-bit unsigned immediate
-      2'b00:   ExtImm = {24'b0, Instr[7:0]};  
+      2'b00:   ExtImm = {24'b0, shift};  
       // 12-bit unsigned immediate 
       2'b01:   ExtImm = {20'b0, Instr[11:0]}; 
       // 24-bit two's complement shifted branch 
